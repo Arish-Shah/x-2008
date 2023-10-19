@@ -6,5 +6,9 @@
   "editor.codeActionsOnSave": {
     "source.fixAll": true,
     "source.organizeImports": true
+  },
+  "files.exclude": {
+    "**/.next": true,
+    "**/node_modules": true
   }
 }
