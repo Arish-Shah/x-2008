@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleType {
+  user
+  admin
+}
+
+enum LanguageType {
+  en
+}
+
+enum ReplyType {
+  all
+  following
+  none
+}
+
+enum DeviceUpdateType {
+  on
+  off
+  directMessages @map("direct_messages")
+}
+
+model User {
+  id               Int           @id @default(autoincrement())
+  username         String        @unique @db.VarChar(15)
+  email            String        @unique @db.VarChar(30)
+  password         String
+  role             RoleType      @default(user)
+  profile          Profile?
+  updates          Update[]
+  favorites        Favorite[]
+  following        Follows[]     @relation("follower")
+  followedBy       Follows[]     @relation("following")
+  sentMessages     Message[]     @relation("sent")
+  receivedMessages Message[]     @relation("received")
+  notification     Notification?
+  deviceUpdate     DeviceUpdate?
+  blocking         Blocks[]      @relation("blocker")
+  blockedBy        Blocks[]      @relation("blocking")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Profile {
+  id        Int          @id @default(autoincrement())
+  name      String?      @db.VarChar(20)
+  web       String?
+  bio       String?      @db.VarChar(160)
+  location  String?      @db.VarChar(30)
+  language  LanguageType @default(en)
+  protected Boolean      @default(false)
+  picture   String
+  theme     Theme?
+  userId    Int          @unique @map("user_id")
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  @@map("profiles")
+}
+
+model Theme {
+  id              Int      @id @default(autoincrement())
+  text            String   @db.VarChar(7)
+  background      String   @db.VarChar(7)
+  links           String   @db.VarChar(7)
+  sidebar         String   @db.VarChar(7)
+  sidebarBorder   String   @map("sidebar_border") @db.VarChar(7)
+  backgroundImage String   @map("background_image")
+  tile            Boolean  @default(false)
+  profileId       Int      @unique @map("profile_id")
+  profile         Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("themes")
+}
+
+model Application {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  url       String?
+  updates   Update[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("applications")
+}
+
+model Update {
+  id            Int         @id @default(autoincrement())
+  text          String      @db.VarChar(140)
+  author        User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId      Int         @map("author_id")
+  applicationId Int         @map("application_id")
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  parentId      Int?        @map("parent_id")
+  parent        Update?     @relation("ParentReplies", fields: [parentId], references: [id])
+  replies       Update[]    @relation("ParentReplies")
+  favorites     Favorite[]
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@map("updates")
+}
+
+model Message {
+  id          Int      @id @default(autoincrement())
+  text        String   @db.VarChar(140)
+  fromId      Int      @map("from_id")
+  from        User     @relation("sent", fields: [fromId], references: [id], onDelete: Cascade)
+  fromDeleted Boolean  @default(false) @map("from_deleted")
+  toId        Int      @map("to_id")
+  to          User     @relation("received", fields: [toId], references: [id], onDelete: Cascade)
+  toDeleted   Boolean  @default(false) @map("to_deleted")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("messages")
+}
+
+model Notification {
+  id          Int       @id @default(autoincrement())
+  nudge       Boolean   @default(false)
+  replies     ReplyType @default(following)
+  newFollower Boolean   @default(true) @map("new_follower")
+  directText  Boolean   @default(true) @map("direct_text")
+  newsletter  Boolean   @default(false)
+  userId      Int       @unique @map("user_id")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("notifications")
+}
+
+model DeviceUpdate {
+  id        Int              @id @default(autoincrement())
+  phone     String           @unique
+  type      DeviceUpdateType @default(off)
+  sleep     Boolean          @default(true)
+  from      Int              @default(0)
+  to        Int              @default(0)
+  userId    Int              @unique @map("user_id")
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  @@map("device_updates")
+}
+
+model Favorite {
+  updateId  Int      @map("update_id")
+  update    Update   @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([updateId, userId])
+  @@map("favorites")
+}
+
+model Follows {
+  followerId    Int      @map("follower_id")
+  follower      User     @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId   Int      @map("following_id")
+  following     User     @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+  deviceUpdates Boolean  @default(false) @map("device_updates")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@id([followerId, followingId])
+  @@map("follows")
+}
+
+model Blocks {
+  blockerId  Int      @map("blocker_id")
+  blocker    User     @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockingId Int      @map("blocking_id")
+  blocking   User     @relation("blocking", fields: [blockingId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@id([blockerId, blockingId])
+  @@map("blocks")
+}
